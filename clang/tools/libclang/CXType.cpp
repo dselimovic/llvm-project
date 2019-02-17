@@ -1276,3 +1276,70 @@ enum CXTypeNullabilityKind clang_Type_getNullability(CXType CT) {
   }
   return CXTypeNullability_Invalid;
 }
+
+// Gamepires begin
+
+CXType clang_getNullType() {
+  CXType type;
+  type.kind = CXType_Invalid;
+  type.data[0] = nullptr;
+  type.data[1] = nullptr;
+  return type;
+}
+
+unsigned clang_isFundamentalType(CXType CT) {
+  QualType T = GetQualType(CT);
+  const Type *TP = T.getTypePtr();
+
+  if (!TP) {
+    return 0;
+  }
+
+  return TP->isFundamentalType() ? 1 : 0;
+}
+
+unsigned clang_isIncompleteType(CXType CT) {
+  QualType T = GetQualType(CT);
+  const Type *TP = T.getTypePtr();
+
+  if (!TP) {
+    return 0;
+  }
+
+  return TP->isIncompleteType() ? 1 : 0;
+}
+
+CXType clang_removeTypeQualifiers(CXType CT) {
+  QualType T = GetQualType(CT);
+  T = T.withoutLocalFastQualifiers();
+  return MakeCXType(T, GetTU(CT));
+}
+
+CXType clang_makeConstQualifiedType(CXType CT) {
+  QualType T = GetQualType(CT);
+  T = T.withConst();
+  return MakeCXType(T, GetTU(CT));
+}
+
+CXType clang_makePointerType(CXType CT) {
+  QualType T = GetQualType(CT);
+  T = GetTU(CT)->TheASTUnit->getASTContext().getPointerType(T);
+  return MakeCXType(T, GetTU(CT));
+}
+
+CXType clang_makeReferenceType(CXType CT) {
+  QualType T = GetQualType(CT);
+  T = GetTU(CT)->TheASTUnit->getASTContext().getLValueReferenceType(T);
+  return MakeCXType(T, GetTU(CT));
+}
+
+CXType clang_getVoidType(CXTranslationUnit TU) {
+  if (TU == nullptr) {
+    return clang_getNullType();
+  }
+
+  QualType T = TU->TheASTUnit->getASTContext().VoidTy;
+  return MakeCXType(T, TU);
+}
+
+// Gamepires end

@@ -6705,6 +6705,39 @@ CINDEX_LINKAGE unsigned clang_Type_visitFields(CXType T,
                                                CXFieldVisitor visitor,
                                                CXClientData client_data);
 
+// Gamepires begin
+
+CINDEX_LINKAGE CXType clang_getNullType();
+CINDEX_LINKAGE unsigned clang_isFundamentalType(CXType T);
+CINDEX_LINKAGE unsigned clang_isIncompleteType(CXType T);
+CINDEX_LINKAGE CXType clang_removeTypeQualifiers(CXType T);
+CINDEX_LINKAGE CXType clang_makeConstQualifiedType(CXType T);
+CINDEX_LINKAGE CXType clang_makePointerType(CXType T);
+CINDEX_LINKAGE CXType clang_makeReferenceType(CXType T);
+CINDEX_LINKAGE CXType clang_getVoidType(CXTranslationUnit TU);
+
+CINDEX_LINKAGE unsigned clang_CXXConstructor_isExplicit(CXCursor C);
+
+CINDEX_LINKAGE unsigned clang_CXXRecord_isPolymorphic(CXCursor C);
+CINDEX_LINKAGE unsigned clang_CXXRecord_isTriviallyDefaultConstructible(CXCursor C);
+CINDEX_LINKAGE unsigned clang_CXXRecord_isTriviallyCopyConstructible(CXCursor C);
+CINDEX_LINKAGE unsigned clang_CXXRecord_isTriviallyCopyable(CXCursor C);
+CINDEX_LINKAGE unsigned clang_CXXRecord_isTriviallyDestructible(CXCursor C);
+CINDEX_LINKAGE unsigned clang_CXXRecord_isStandardLayout(CXCursor C);
+CINDEX_LINKAGE void clang_CXXRecord_declareImplicitMembers(CXCursor C);
+
+CINDEX_LINKAGE unsigned clang_CXXMethod_isCopyAssignmentOperator(CXCursor C);
+CINDEX_LINKAGE unsigned clang_CXXMethod_isMoveAssignmentOperator(CXCursor C);
+CINDEX_LINKAGE unsigned clang_Function_isDefaulted(CXCursor C);
+CINDEX_LINKAGE unsigned clang_Function_isDeleted(CXCursor C);
+CINDEX_LINKAGE unsigned clang_Function_isOverloadedOperator(CXCursor C);
+CINDEX_LINKAGE unsigned clang_ConversionFunction_isExplicit(CXCursor C);
+CINDEX_LINKAGE unsigned clang_Argument_hasDefaultValue(CXCursor C);
+CINDEX_LINKAGE CXSourceRange clang_Argument_getDefaultValueSourceRange(CXCursor C);
+CINDEX_LINKAGE const char* clang_SourceLocation_getCharacterData(CXSourceLocation SL);
+
+// Gamepires end
+
 /**
  * @}
  */

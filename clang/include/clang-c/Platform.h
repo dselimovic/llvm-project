@@ -19,15 +19,17 @@ extern "C" {
 #endif
 
 /* MSVC DLL import/export. */
-#ifdef _MSC_VER
-  #ifdef _CINDEX_LIB_
-    #define CINDEX_LINKAGE __declspec(dllexport)
-  #else
-    #define CINDEX_LINKAGE __declspec(dllimport)
-  #endif
-#else
-  #define CINDEX_LINKAGE
-#endif
+//#ifdef _MSC_VER
+//  #ifdef _CINDEX_LIB_
+//    #define CINDEX_LINKAGE __declspec(dllexport)
+//  #else
+//    #define CINDEX_LINKAGE __declspec(dllimport)
+//  #endif
+//#else
+//  #define CINDEX_LINKAGE
+//#endif
+
+#define CINDEX_LINKAGE
 
 #ifdef __GNUC__
   #define CINDEX_DEPRECATED __attribute__((deprecated))

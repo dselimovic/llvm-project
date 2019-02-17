@@ -36,6 +36,7 @@
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/PreprocessingRecord.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Sema/Sema.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -196,10 +197,11 @@ bool CursorVisitor::Visit(CXCursor Cursor, bool CheckedRegionOfInterest) {
       assert(0 && "Invalid declaration cursor");
       return true; // abort.
     }
-    
+
     // Ignore implicit declarations, unless it's an objc method because
     // currently we should report implicit methods for properties when indexing.
-    if (D->isImplicit() && !isa<ObjCMethodDecl>(D))
+    if (D->isImplicit() && !isa<ObjCMethodDecl>(D) &&
+        !isa<CXXConstructorDecl>(D) && !isa<CXXMethodDecl>(D)) // ds: We want implicitly defined constructors and methods
       return false;
   }
 
@@ -8666,6 +8668,224 @@ void clang_disposeSourceRangeList(CXSourceRangeList *ranges) {
     delete ranges;
   }
 }
+
+// Gamepires begin
+
+unsigned clang_CXXConstructor_isExplicit(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const Decl *D = cxcursor::getCursorDecl(C);
+  const CXXConstructorDecl *Constructor =
+      D ? dyn_cast_or_null<CXXConstructorDecl>(D->getAsFunction()) : nullptr;
+  return (Constructor && Constructor->isExplicit()) ? 1 : 0;
+}
+
+unsigned clang_CXXMethod_isCopyAssignmentOperator(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const Decl *D = cxcursor::getCursorDecl(C);
+  const CXXMethodDecl *Method =
+      D ? dyn_cast_or_null<CXXMethodDecl>(D->getAsFunction()) : nullptr;
+  return (Method && Method->isCopyAssignmentOperator()) ? 1 : 0;
+}
+
+unsigned clang_CXXMethod_isMoveAssignmentOperator(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const Decl *D = cxcursor::getCursorDecl(C);
+  const CXXMethodDecl *Method =
+      D ? dyn_cast_or_null<CXXMethodDecl>(D->getAsFunction()) : nullptr;
+  return (Method && Method->isMoveAssignmentOperator()) ? 1 : 0;
+}
+
+unsigned clang_Function_isDefaulted(CXCursor C) {
+  if (clang_isDeclaration(C.kind)) {
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(getCursorDecl(C))) {
+      return FD->isDefaulted() ? 1 : 0;
+    }
+  }
+
+  return 0;
+}
+
+unsigned clang_Function_isDeleted(CXCursor C) {
+  if (clang_isDeclaration(C.kind)) {
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(getCursorDecl(C))) {
+      return FD->isDeleted() ? 1 : 0;
+    }
+  }
+
+  return 0;
+}
+
+unsigned clang_Function_isOverloadedOperator(CXCursor C) {
+  if (clang_isDeclaration(C.kind)) {
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(getCursorDecl(C))) {
+      return FD->isOverloadedOperator() ? 1 : 0;
+    }
+  }
+
+  return 0;
+}
+
+unsigned clang_ConversionFunction_isExplicit(CXCursor C) {
+  if (clang_isDeclaration(C.kind)) {
+    if (const CXXConversionDecl *CD =
+            dyn_cast<CXXConversionDecl>(getCursorDecl(C))) {
+      return CD->isExplicit() ? 1 : 0;
+    }
+  }
+
+  return 0;
+}
+
+unsigned clang_Argument_hasDefaultValue(CXCursor C) {
+  if (clang_isDeclaration(C.kind)) {
+    if (const ParmVarDecl *PD = dyn_cast<ParmVarDecl>(getCursorDecl(C))) {
+      return PD->hasDefaultArg() ? 1 : 0;
+    }
+  }
+
+  return 0;
+}
+
+CXSourceRange clang_Argument_getDefaultValueSourceRange(CXCursor C) {
+  if (clang_isDeclaration(C.kind)) {
+    if (const ParmVarDecl *PD = dyn_cast<ParmVarDecl>(getCursorDecl(C))) {
+      if (!PD->hasDefaultArg()) {
+        return clang_getNullRange();
+      }
+
+      SourceRange R = PD->getDefaultArgRange();
+
+      if (R.isInvalid())
+        return clang_getNullRange();
+
+      return cxloc::translateSourceRange(getCursorContext(C), R);
+    }
+  }
+
+  return clang_getNullRange();
+}
+
+const char *clang_SourceLocation_getCharacterData(CXSourceLocation SL) {
+  const SourceLocation Loc = SourceLocation::getFromRawEncoding(SL.int_data);
+  if (Loc.isInvalid())
+    return nullptr;
+
+  const SourceManager &SM = *static_cast<const SourceManager *>(SL.ptr_data[0]);
+  return SM.getCharacterData(Loc);
+}
+
+unsigned clang_CXXRecord_isPolymorphic(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const auto *D = cxcursor::getCursorDecl(C);
+  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(D);
+  if (RD)
+    RD = RD->getDefinition();
+  return (RD && RD->isPolymorphic()) ? 1 : 0;
+}
+
+unsigned clang_CXXRecord_isTriviallyDefaultConstructible(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const auto *D = cxcursor::getCursorDecl(C);
+  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(D);
+  if (RD)
+    RD = RD->getDefinition();
+  return (RD && RD->hasTrivialDefaultConstructor()) ? 1 : 0;
+}
+
+unsigned clang_CXXRecord_isTriviallyCopyConstructible(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const auto *D = cxcursor::getCursorDecl(C);
+  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(D);
+  if (RD)
+    RD = RD->getDefinition();
+  return (RD && RD->hasTrivialCopyConstructor()) ? 1 : 0;
+}
+
+unsigned clang_CXXRecord_isTriviallyCopyable(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const auto *D = cxcursor::getCursorDecl(C);
+  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(D);
+  if (RD)
+    RD = RD->getDefinition();
+  return (RD && RD->isTriviallyCopyable()) ? 1 : 0;
+}
+
+unsigned clang_CXXRecord_isTriviallyDestructible(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const auto *D = cxcursor::getCursorDecl(C);
+  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(D);
+  if (RD)
+    RD = RD->getDefinition();
+  return (RD && RD->hasTrivialDestructor()) ? 1 : 0;
+}
+
+unsigned clang_CXXRecord_isStandardLayout(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return 0;
+
+  const auto *D = cxcursor::getCursorDecl(C);
+  const auto *RD = dyn_cast_or_null<CXXRecordDecl>(D);
+  if (RD)
+    RD = RD->getDefinition();
+  return (RD && RD->isStandardLayout()) ? 1 : 0;
+}
+
+void clang_CXXRecord_declareImplicitMembers(CXCursor C) {
+  if (!clang_isDeclaration(C.kind))
+    return;
+
+  if (CXXRecordDecl *RD = const_cast<CXXRecordDecl *>(
+          dyn_cast<CXXRecordDecl>(getCursorDecl(C)))) {
+    RD = RD->getDefinition();
+    if (!RD || RD->isDependentType())
+      return;
+
+    CXTranslationUnit TU = getCursorTU(C);
+    Sema &sema = TU->TheASTUnit->getSema();
+
+    if (RD->needsImplicitDefaultConstructor()) {
+      sema.DeclareImplicitDefaultConstructor(RD);
+    }
+
+    if (RD->needsImplicitCopyConstructor()) {
+      sema.DeclareImplicitCopyConstructor(RD);
+    }
+
+    if (RD->needsImplicitMoveConstructor()) {
+      sema.DeclareImplicitMoveConstructor(RD);
+    }
+
+    if (RD->needsImplicitCopyAssignment()) {
+      sema.DeclareImplicitCopyAssignment(RD);
+    }
+
+    if (RD->needsImplicitMoveAssignment()) {
+      sema.DeclareImplicitMoveAssignment(RD);
+    }
+
+    if (RD->needsImplicitDestructor()) {
+      sema.DeclareImplicitDestructor(RD);
+    }
+  }
+}
+
+// Gamepires end
 
 void clang::PrintLibclangResourceUsage(CXTranslationUnit TU) {
   CXTUResourceUsage Usage = clang_getCXTUResourceUsage(TU);
