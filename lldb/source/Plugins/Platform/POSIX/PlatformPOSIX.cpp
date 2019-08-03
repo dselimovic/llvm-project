@@ -36,21 +36,17 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//------------------------------------------------------------------
 /// Default Constructor
-//------------------------------------------------------------------
 PlatformPOSIX::PlatformPOSIX(bool is_host)
     : RemoteAwarePlatform(is_host), // This is the local host platform
       m_option_group_platform_rsync(new OptionGroupPlatformRSync()),
       m_option_group_platform_ssh(new OptionGroupPlatformSSH()),
       m_option_group_platform_caching(new OptionGroupPlatformCaching()) {}
 
-//------------------------------------------------------------------
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-//------------------------------------------------------------------
 PlatformPOSIX::~PlatformPOSIX() {}
 
 lldb_private::OptionGroupOptions *PlatformPOSIX::GetConnectionOptions(
@@ -227,8 +223,8 @@ static uint32_t chown_file(Platform *platform, const char *path,
     command.Printf(":%d", gid);
   command.Printf("%s", path);
   int status;
-  platform->RunShellCommand(command.GetData(), NULL, &status, NULL, NULL,
-                            std::chrono::seconds(10));
+  platform->RunShellCommand(command.GetData(), nullptr, &status, nullptr,
+                            nullptr, std::chrono::seconds(10));
   return status;
 }
 
@@ -252,7 +248,7 @@ PlatformPOSIX::PutFile(const lldb_private::FileSpec &source,
     StreamString command;
     command.Printf("cp %s %s", src_path.c_str(), dst_path.c_str());
     int status;
-    RunShellCommand(command.GetData(), NULL, &status, NULL, NULL,
+    RunShellCommand(command.GetData(), nullptr, &status, nullptr, nullptr,
                     std::chrono::seconds(10));
     if (status != 0)
       return Status("unable to perform copy");
@@ -280,11 +276,10 @@ PlatformPOSIX::PutFile(const lldb_private::FileSpec &source,
       } else
         command.Printf("rsync %s %s %s:%s", GetRSyncOpts(), src_path.c_str(),
                        GetHostname(), dst_path.c_str());
-      if (log)
-        log->Printf("[PutFile] Running command: %s\n", command.GetData());
+      LLDB_LOGF(log, "[PutFile] Running command: %s\n", command.GetData());
       int retcode;
-      Host::RunShellCommand(command.GetData(), NULL, &retcode, NULL, NULL,
-                            std::chrono::minutes(1));
+      Host::RunShellCommand(command.GetData(), nullptr, &retcode, nullptr,
+                            nullptr, std::chrono::minutes(1));
       if (retcode == 0) {
         // Don't chown a local file for a remote system
         //                if (chown_file(this,dst_path.c_str(),uid,gid) != 0)
@@ -319,7 +314,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
     StreamString cp_command;
     cp_command.Printf("cp %s %s", src_path.c_str(), dst_path.c_str());
     int status;
-    RunShellCommand(cp_command.GetData(), NULL, &status, NULL, NULL,
+    RunShellCommand(cp_command.GetData(), nullptr, &status, nullptr, nullptr,
                     std::chrono::seconds(10));
     if (status != 0)
       return Status("unable to perform copy");
@@ -338,11 +333,10 @@ lldb_private::Status PlatformPOSIX::GetFile(
         command.Printf("rsync %s %s:%s %s", GetRSyncOpts(),
                        m_remote_platform_sp->GetHostname(), src_path.c_str(),
                        dst_path.c_str());
-      if (log)
-        log->Printf("[GetFile] Running command: %s\n", command.GetData());
+      LLDB_LOGF(log, "[GetFile] Running command: %s\n", command.GetData());
       int retcode;
-      Host::RunShellCommand(command.GetData(), NULL, &retcode, NULL, NULL,
-                            std::chrono::minutes(1));
+      Host::RunShellCommand(command.GetData(), nullptr, &retcode, nullptr,
+                            nullptr, std::chrono::minutes(1));
       if (retcode == 0)
         return Status();
       // If we are here, rsync has failed - let's try the slow way before
@@ -352,8 +346,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
     // read/write, read/write, read/write, ...
     // close src
     // close dst
-    if (log)
-      log->Printf("[GetFile] Using block by block transfer....\n");
+    LLDB_LOGF(log, "[GetFile] Using block by block transfer....\n");
     Status error;
     user_id_t fd_src = OpenFile(source, File::eOpenOptionRead,
                                 lldb::eFilePermissionsFileDefault, error);
@@ -513,35 +506,32 @@ lldb::ProcessSP PlatformPOSIX::Attach(ProcessAttachInfo &attach_info,
   Log *log(GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM));
 
   if (IsHost()) {
-    if (target == NULL) {
+    if (target == nullptr) {
       TargetSP new_target_sp;
 
       error = debugger.GetTargetList().CreateTarget(
-          debugger, "", "", eLoadDependentsNo, NULL, new_target_sp);
+          debugger, "", "", eLoadDependentsNo, nullptr, new_target_sp);
       target = new_target_sp.get();
-      if (log)
-        log->Printf("PlatformPOSIX::%s created new target", __FUNCTION__);
+      LLDB_LOGF(log, "PlatformPOSIX::%s created new target", __FUNCTION__);
     } else {
       error.Clear();
-      if (log)
-        log->Printf("PlatformPOSIX::%s target already existed, setting target",
-                    __FUNCTION__);
+      LLDB_LOGF(log, "PlatformPOSIX::%s target already existed, setting target",
+                __FUNCTION__);
     }
 
     if (target && error.Success()) {
       debugger.GetTargetList().SetSelectedTarget(target);
       if (log) {
         ModuleSP exe_module_sp = target->GetExecutableModule();
-        log->Printf("PlatformPOSIX::%s set selected target to %p %s",
-                    __FUNCTION__, (void *)target,
-                    exe_module_sp
-                        ? exe_module_sp->GetFileSpec().GetPath().c_str()
-                        : "<null>");
+        LLDB_LOGF(log, "PlatformPOSIX::%s set selected target to %p %s",
+                  __FUNCTION__, (void *)target,
+                  exe_module_sp ? exe_module_sp->GetFileSpec().GetPath().c_str()
+                                : "<null>");
       }
 
       process_sp =
           target->CreateProcess(attach_info.GetListenerForProcess(debugger),
-                                attach_info.GetProcessPluginName(), NULL);
+                                attach_info.GetProcessPluginName(), nullptr);
 
       if (process_sp) {
         ListenerSP listener_sp = attach_info.GetHijackListener();
@@ -621,7 +611,7 @@ Status PlatformPOSIX::EvaluateLibdlExpression(
   expr_options.SetLanguage(eLanguageTypeC_plus_plus);
   expr_options.SetTrapExceptions(false); // dlopen can't throw exceptions, so
                                          // don't do the work to trap them.
-  expr_options.SetTimeout(std::chrono::seconds(2));
+  expr_options.SetTimeout(process->GetUtilityExpressionTimeout());
 
   Status expr_error;
   ExpressionResults result =
@@ -946,7 +936,7 @@ uint32_t PlatformPOSIX::DoLoadImage(lldb_private::Process *process,
   options.SetUnwindOnError(true);
   options.SetTrapExceptions(false); // dlopen can't throw exceptions, so
                                     // don't do the work to trap them.
-  options.SetTimeout(std::chrono::seconds(2));
+  options.SetTimeout(process->GetUtilityExpressionTimeout());
   options.SetIsForUtilityExpr(true);
 
   Value return_value;

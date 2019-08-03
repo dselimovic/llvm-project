@@ -174,7 +174,7 @@ void HasParams(int i, double d);
 // LINUX: ret void (i32, double)* @HasParams.A
 // LINUX-NOT: call void @llvm.trap
 
-// WINDOWS: define dso_local void @HasParams(i32, double)
+// WINDOWS: define dso_local void @HasParams(i32 %0, double %1)
 // WINDOWS: call void @__cpu_indicator_init
 // WINDOWS: call void @HasParams.Z(i32 %0, double %1)
 // WINDOWS-NEXT: ret void
@@ -196,7 +196,7 @@ int HasParamsAndReturn(int i, double d);
 // LINUX: ret i32 (i32, double)* @HasParamsAndReturn.A
 // LINUX-NOT: call void @llvm.trap
 
-// WINDOWS: define dso_local i32 @HasParamsAndReturn(i32, double)
+// WINDOWS: define dso_local i32 @HasParamsAndReturn(i32 %0, double %1)
 // WINDOWS: call void @__cpu_indicator_init
 // WINDOWS: %[[RET:.+]] = musttail call i32 @HasParamsAndReturn.Z(i32 %0, double %1)
 // WINDOWS-NEXT: ret i32 %[[RET]]
@@ -217,7 +217,7 @@ int GenericAndPentium(int i, double d);
 // LINUX-NOT: ret i32 (i32, double)* @GenericAndPentium.A
 // LINUX-NOT: call void @llvm.trap
 
-// WINDOWS: define dso_local i32 @GenericAndPentium(i32, double)
+// WINDOWS: define dso_local i32 @GenericAndPentium(i32 %0, double %1)
 // WINDOWS: call void @__cpu_indicator_init
 // WINDOWS: %[[RET:.+]] = musttail call i32 @GenericAndPentium.O(i32 %0, double %1)
 // WINDOWS-NEXT: ret i32 %[[RET]]
@@ -254,6 +254,6 @@ int DispatchFirst(void) {return 1;}
 // WINDOWS: define dso_local i32 @DispatchFirst.B
 // WINDOWS: ret i32 1
 
-// CHECK: attributes #[[S]] = {{.*}}"target-features"="+avx,+cmov,+f16c,+mmx,+popcnt,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+x87,+xsave"
-// CHECK: attributes #[[K]] = {{.*}}"target-features"="+adx,+avx,+avx2,+avx512cd,+avx512er,+avx512f,+avx512pf,+bmi,+cmov,+f16c,+fma,+lzcnt,+mmx,+movbe,+popcnt,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+x87,+xsave"
-// CHECK: attributes #[[O]] = {{.*}}"target-features"="+cmov,+mmx,+movbe,+sse,+sse2,+sse3,+ssse3,+x87"
+// CHECK: attributes #[[S]] = {{.*}}"target-features"="+avx,+cmov,+cx8,+f16c,+mmx,+popcnt,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+x87,+xsave"
+// CHECK: attributes #[[K]] = {{.*}}"target-features"="+adx,+avx,+avx2,+avx512cd,+avx512er,+avx512f,+avx512pf,+bmi,+cmov,+cx8,+f16c,+fma,+lzcnt,+mmx,+movbe,+popcnt,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+x87,+xsave"
+// CHECK: attributes #[[O]] = {{.*}}"target-features"="+cmov,+cx8,+mmx,+movbe,+sse,+sse2,+sse3,+ssse3,+x87"

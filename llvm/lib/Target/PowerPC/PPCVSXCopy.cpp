@@ -36,10 +36,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "ppc-vsx-copy"
 
-namespace llvm {
-  void initializePPCVSXCopyPass(PassRegistry&);
-}
-
 namespace {
   // PPCVSXCopy pass - For copies between VSX registers and non-VSX registers
   // (Altivec and scalar floating-point registers), we need to transform the
@@ -54,7 +50,7 @@ namespace {
 
     bool IsRegInClass(unsigned Reg, const TargetRegisterClass *RC,
                       MachineRegisterInfo &MRI) {
-      if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+      if (Register::isVirtualRegister(Reg)) {
         return RC->hasSubClassEq(MRI.getRegClass(Reg));
       } else if (RC->contains(Reg)) {
         return true;

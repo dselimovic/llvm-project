@@ -76,16 +76,19 @@ IOHandler::IOHandler(Debugger &debugger, IOHandler::Type type)
                 StreamFileSP(), // Adopt STDIN from top input reader
                 StreamFileSP(), // Adopt STDOUT from top input reader
                 StreamFileSP(), // Adopt STDERR from top input reader
-                0)              // Flags
-{}
+                0,              // Flags
+                nullptr         // Shadow file recorder
+      ) {}
 
 IOHandler::IOHandler(Debugger &debugger, IOHandler::Type type,
                      const lldb::StreamFileSP &input_sp,
                      const lldb::StreamFileSP &output_sp,
-                     const lldb::StreamFileSP &error_sp, uint32_t flags)
+                     const lldb::StreamFileSP &error_sp, uint32_t flags,
+                     repro::DataRecorder *data_recorder)
     : m_debugger(debugger), m_input_sp(input_sp), m_output_sp(output_sp),
-      m_error_sp(error_sp), m_popped(false), m_flags(flags), m_type(type),
-      m_user_data(nullptr), m_done(false), m_active(false) {
+      m_error_sp(error_sp), m_data_recorder(data_recorder), m_popped(false),
+      m_flags(flags), m_type(type), m_user_data(nullptr), m_done(false),
+      m_active(false) {
   // If any files are not specified, then adopt them from the top input reader.
   if (!m_input_sp || !m_output_sp || !m_error_sp)
     debugger.AdoptTopIOHandlerFilesIfInvalid(m_input_sp, m_output_sp,
@@ -153,7 +156,7 @@ IOHandlerConfirm::IOHandlerConfirm(Debugger &debugger, llvm::StringRef prompt,
           llvm::StringRef(), // No continuation prompt
           false,             // Multi-line
           false, // Don't colorize the prompt (i.e. the confirm message.)
-          0, *this),
+          0, *this, nullptr),
       m_default_response(default_response), m_user_response(default_response) {
   StreamString prompt_stream;
   prompt_stream.PutCString(prompt);
@@ -169,8 +172,7 @@ IOHandlerConfirm::~IOHandlerConfirm() = default;
 
 int IOHandlerConfirm::IOHandlerComplete(
     IOHandler &io_handler, const char *current_line, const char *cursor,
-    const char *last_char, int skip_first_n_matches, int max_matches,
-    StringList &matches, StringList &descriptions) {
+    const char *last_char, StringList &matches, StringList &descriptions) {
   if (current_line == cursor) {
     if (m_default_response) {
       matches.AppendString("y");
@@ -218,20 +220,17 @@ void IOHandlerConfirm::IOHandlerInputComplete(IOHandler &io_handler,
 
 int IOHandlerDelegate::IOHandlerComplete(
     IOHandler &io_handler, const char *current_line, const char *cursor,
-    const char *last_char, int skip_first_n_matches, int max_matches,
-    StringList &matches, StringList &descriptions) {
+    const char *last_char, StringList &matches, StringList &descriptions) {
   switch (m_completion) {
   case Completion::None:
     break;
 
   case Completion::LLDBCommand:
     return io_handler.GetDebugger().GetCommandInterpreter().HandleCompletion(
-        current_line, cursor, last_char, skip_first_n_matches, max_matches,
-        matches, descriptions);
+        current_line, cursor, last_char, matches, descriptions);
   case Completion::Expression: {
     CompletionResult result;
-    CompletionRequest request(current_line, current_line - cursor,
-                              skip_first_n_matches, max_matches, result);
+    CompletionRequest request(current_line, cursor - current_line, result);
     CommandCompletions::InvokeCommonCompletionCallbacks(
         io_handler.GetDebugger().GetCommandInterpreter(),
         CommandCompletions::eVariablePathCompletion, request, nullptr);
@@ -240,8 +239,7 @@ int IOHandlerDelegate::IOHandlerComplete(
 
     size_t num_matches = request.GetNumberOfMatches();
     if (num_matches > 0) {
-      std::string common_prefix;
-      matches.LongestCommonPrefix(common_prefix);
+      std::string common_prefix = matches.LongestCommonPrefix();
       const size_t partial_name_len = request.GetCursorArgumentPrefix().size();
 
       // If we matched a unique single command, add a space... Only do this if
@@ -264,7 +262,7 @@ IOHandlerEditline::IOHandlerEditline(
     const char *editline_name, // Used for saving history files
     llvm::StringRef prompt, llvm::StringRef continuation_prompt,
     bool multi_line, bool color_prompts, uint32_t line_number_start,
-    IOHandlerDelegate &delegate)
+    IOHandlerDelegate &delegate, repro::DataRecorder *data_recorder)
     : IOHandlerEditline(debugger, type,
                         StreamFileSP(), // Inherit input from top input reader
                         StreamFileSP(), // Inherit output from top input reader
@@ -272,7 +270,7 @@ IOHandlerEditline::IOHandlerEditline(
                         0,              // Flags
                         editline_name,  // Used for saving history files
                         prompt, continuation_prompt, multi_line, color_prompts,
-                        line_number_start, delegate) {}
+                        line_number_start, delegate, data_recorder) {}
 
 IOHandlerEditline::IOHandlerEditline(
     Debugger &debugger, IOHandler::Type type,
@@ -281,8 +279,9 @@ IOHandlerEditline::IOHandlerEditline(
     const char *editline_name, // Used for saving history files
     llvm::StringRef prompt, llvm::StringRef continuation_prompt,
     bool multi_line, bool color_prompts, uint32_t line_number_start,
-    IOHandlerDelegate &delegate)
-    : IOHandler(debugger, type, input_sp, output_sp, error_sp, flags),
+    IOHandlerDelegate &delegate, repro::DataRecorder *data_recorder)
+    : IOHandler(debugger, type, input_sp, output_sp, error_sp, flags,
+                data_recorder),
 #ifndef LLDB_DISABLE_LIBEDIT
       m_editline_up(),
 #endif
@@ -327,7 +326,7 @@ IOHandlerEditline::~IOHandlerEditline() {
 
 void IOHandlerEditline::Activate() {
   IOHandler::Activate();
-  m_delegate.IOHandlerActivated(*this);
+  m_delegate.IOHandlerActivated(*this, GetIsInteractive());
 }
 
 void IOHandlerEditline::Deactivate() {
@@ -338,7 +337,10 @@ void IOHandlerEditline::Deactivate() {
 bool IOHandlerEditline::GetLine(std::string &line, bool &interrupted) {
 #ifndef LLDB_DISABLE_LIBEDIT
   if (m_editline_up) {
-    return m_editline_up->GetLine(line, interrupted);
+    bool b = m_editline_up->GetLine(line, interrupted);
+    if (m_data_recorder)
+      m_data_recorder->Record(line, true);
+    return b;
   } else {
 #endif
     line.clear();
@@ -367,7 +369,21 @@ bool IOHandlerEditline::GetLine(std::string &line, bool &interrupted) {
       bool got_line = false;
       m_editing = true;
       while (!done) {
+#ifdef _WIN32
+        // ReadFile on Windows is supposed to set ERROR_OPERATION_ABORTED
+        // according to the docs on MSDN. However, this has evidently been a
+        // known bug since Windows 8. Therefore, we can't detect if a signal
+        // interrupted in the fgets. So pressing ctrl-c causes the repl to end
+        // and the process to exit. A temporary workaround is just to attempt to
+        // fgets twice until this bug is fixed.
+        if (fgets(buffer, sizeof(buffer), in) == nullptr &&
+            fgets(buffer, sizeof(buffer), in) == nullptr) {
+          // this is the equivalent of EINTR for Windows
+          if (GetLastError() == ERROR_OPERATION_ABORTED)
+            continue;
+#else
         if (fgets(buffer, sizeof(buffer), in) == nullptr) {
+#endif
           const int saved_errno = errno;
           if (feof(in))
             done = true;
@@ -394,6 +410,8 @@ bool IOHandlerEditline::GetLine(std::string &line, bool &interrupted) {
         }
       }
       m_editing = false;
+      if (m_data_recorder && got_line)
+        m_data_recorder->Record(line, true);
       // We might have gotten a newline on a line by itself make sure to return
       // true in this case.
       return got_line;
@@ -427,13 +445,12 @@ int IOHandlerEditline::FixIndentationCallback(Editline *editline,
 
 int IOHandlerEditline::AutoCompleteCallback(
     const char *current_line, const char *cursor, const char *last_char,
-    int skip_first_n_matches, int max_matches, StringList &matches,
-    StringList &descriptions, void *baton) {
+    StringList &matches, StringList &descriptions, void *baton) {
   IOHandlerEditline *editline_reader = (IOHandlerEditline *)baton;
   if (editline_reader)
     return editline_reader->m_delegate.IOHandlerComplete(
-        *editline_reader, current_line, cursor, last_char, skip_first_n_matches,
-        max_matches, matches, descriptions);
+        *editline_reader, current_line, cursor, last_char, matches,
+        descriptions);
   return 0;
 }
 #endif
@@ -1069,9 +1086,7 @@ public:
 
   operator WINDOW *() { return m_window; }
 
-  //----------------------------------------------------------------------
   // Window drawing utilities
-  //----------------------------------------------------------------------
   void DrawTitleBox(const char *title, const char *bottom_message = nullptr) {
     attr_t attr = 0;
     if (IsActive())
@@ -3929,12 +3944,10 @@ public:
                 m_debugger.GetSourceManager().GetFile(m_sc.line_entry.file);
             if (m_file_sp) {
               const size_t num_lines = m_file_sp->GetNumLines();
-              int m_line_width = 1;
+              m_line_width = 1;
               for (size_t n = num_lines; n >= 10; n = n / 10)
                 ++m_line_width;
 
-              snprintf(m_line_format, sizeof(m_line_format), " %%%iu ",
-                       m_line_width);
               if (num_lines < num_visible_lines ||
                   m_selected_line < num_visible_lines)
                 m_first_visible_line = 0;
@@ -4051,7 +4064,7 @@ public:
           if (bp_attr)
             window.AttributeOn(bp_attr);
 
-          window.Printf(m_line_format, curr_line + 1);
+          window.Printf(" %*u ", m_line_width, curr_line + 1);
 
           if (bp_attr)
             window.AttributeOff(bp_attr);
@@ -4477,7 +4490,6 @@ protected:
   AddressRange m_disassembly_range;
   StreamString m_title;
   lldb::user_id_t m_tid;
-  char m_line_format[8];
   int m_line_width;
   uint32_t m_selected_line; // The selected line
   uint32_t m_pc_line;       // The line with the PC

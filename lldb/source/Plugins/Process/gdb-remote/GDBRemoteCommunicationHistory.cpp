@@ -45,7 +45,7 @@ void GDBRemoteCommunicationHistory::AddPacket(char packet_char, PacketType type,
   m_packets[idx].bytes_transmitted = bytes_transmitted;
   m_packets[idx].packet_idx = m_total_packet_count;
   m_packets[idx].tid = llvm::get_threadid();
-  if (m_stream && type == ePacketTypeRecv)
+  if (m_stream)
     m_packets[idx].Serialize(*m_stream);
 }
 
@@ -62,7 +62,7 @@ void GDBRemoteCommunicationHistory::AddPacket(const std::string &src,
   m_packets[idx].bytes_transmitted = bytes_transmitted;
   m_packets[idx].packet_idx = m_total_packet_count;
   m_packets[idx].tid = llvm::get_threadid();
-  if (m_stream && type == ePacketTypeRecv)
+  if (m_stream)
     m_packets[idx].Serialize(*m_stream);
 }
 
@@ -95,10 +95,10 @@ void GDBRemoteCommunicationHistory::Dump(Log *log) const {
     const Entry &entry = m_packets[idx];
     if (entry.type == ePacketTypeInvalid || entry.packet.data.empty())
       break;
-    log->Printf("history[%u] tid=0x%4.4" PRIx64 " <%4u> %s packet: %s",
-                entry.packet_idx, entry.tid, entry.bytes_transmitted,
-                (entry.type == ePacketTypeSend) ? "send" : "read",
-                entry.packet.data.c_str());
+    LLDB_LOGF(log, "history[%u] tid=0x%4.4" PRIx64 " <%4u> %s packet: %s",
+              entry.packet_idx, entry.tid, entry.bytes_transmitted,
+              (entry.type == ePacketTypeSend) ? "send" : "read",
+              entry.packet.data.c_str());
   }
 }
 

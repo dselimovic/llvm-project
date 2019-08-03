@@ -2,7 +2,6 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 # System modules
-import os
 import sys
 
 # Third-party modules
@@ -27,7 +26,7 @@ else:
             TestBase.setUp(self)
 
         def launchArgs(self):
-            pass
+            return ""
 
         def launch(self, timeout=None):
             if timeout is None:

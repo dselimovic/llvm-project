@@ -65,10 +65,6 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-Bdynamic");
     if (Args.hasArg(options::OPT_shared)) {
       CmdArgs.push_back("-shared");
-    } else {
-      CmdArgs.push_back("--dynamic-linker");
-      CmdArgs.push_back(
-          Args.MakeArgString(getToolChain().GetFilePath("ld.so.1")));
     }
 
     // libpthread has been folded into libc since Solaris 10, no need to do
@@ -95,13 +91,6 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         Args.MakeArgString(getToolChain().GetFilePath("crtbegin.o")));
   }
-
-  // Provide __start___sancov_guards.  Solaris ld doesn't automatically create
-  // __start_SECNAME labels.
-  CmdArgs.push_back("--whole-archive");
-  CmdArgs.push_back(
-      getToolChain().getCompilerRTArgString(Args, "sancov_begin"));
-  CmdArgs.push_back("--no-whole-archive");
 
   getToolChain().AddFilePathLibArgs(Args, CmdArgs);
 
@@ -130,13 +119,6 @@ void solaris::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (NeedsSanitizerDeps)
       linkSanitizerRuntimeDeps(getToolChain(), CmdArgs);
   }
-
-  // Provide __stop___sancov_guards.  Solaris ld doesn't automatically create
-  // __stop_SECNAME labels.
-  CmdArgs.push_back("--whole-archive");
-  CmdArgs.push_back(
-      getToolChain().getCompilerRTArgString(Args, "sancov_end"));
-  CmdArgs.push_back("--no-whole-archive");
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
     CmdArgs.push_back(
@@ -195,11 +177,16 @@ Solaris::Solaris(const Driver &D, const llvm::Triple &Triple,
 
 SanitizerMask Solaris::getSupportedSanitizers() const {
   const bool IsX86 = getTriple().getArch() == llvm::Triple::x86;
+  const bool IsX86_64 = getTriple().getArch() == llvm::Triple::x86_64;
   SanitizerMask Res = ToolChain::getSupportedSanitizers();
   // FIXME: Omit X86_64 until 64-bit support is figured out.
   if (IsX86) {
     Res |= SanitizerKind::Address;
+    Res |= SanitizerKind::PointerCompare;
+    Res |= SanitizerKind::PointerSubtract;
   }
+  if (IsX86 || IsX86_64)
+    Res |= SanitizerKind::Function;
   Res |= SanitizerKind::Vptr;
   return Res;
 }

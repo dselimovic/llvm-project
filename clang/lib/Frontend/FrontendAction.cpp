@@ -360,7 +360,7 @@ static std::error_code collectModuleHeaderIncludes(
     SmallString<128> DirNative;
     llvm::sys::path::native(UmbrellaDir.Entry->getName(), DirNative);
 
-    llvm::vfs::FileSystem &FS = *FileMgr.getVirtualFileSystem();
+    llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
     for (llvm::vfs::recursive_directory_iterator Dir(FS, DirNative, EC), End;
          Dir != End && !EC; Dir.increment(EC)) {
       // Check whether this entry has an extension typically associated with
@@ -370,7 +370,7 @@ static std::error_code collectModuleHeaderIncludes(
                .Default(false))
         continue;
 
-      const FileEntry *Header = FileMgr.getFile(Dir->path());
+      auto Header = FileMgr.getFile(Dir->path());
       // FIXME: This shouldn't happen unless there is a file system race. Is
       // that worth diagnosing?
       if (!Header)
@@ -378,7 +378,7 @@ static std::error_code collectModuleHeaderIncludes(
 
       // If this header is marked 'unavailable' in this module, don't include
       // it.
-      if (ModMap.isHeaderUnavailableInModule(Header, Module))
+      if (ModMap.isHeaderUnavailableInModule(*Header, Module))
         continue;
 
       // Compute the relative path from the directory to this file.
@@ -392,7 +392,7 @@ static std::error_code collectModuleHeaderIncludes(
         llvm::sys::path::append(RelativeHeader, *It);
 
       // Include this header as part of the umbrella directory.
-      Module->addTopHeader(Header);
+      Module->addTopHeader(*Header);
       addHeaderInclude(RelativeHeader, Includes, LangOpts, Module->IsExternC);
     }
 
@@ -481,7 +481,7 @@ static Module *prepareToBuildModule(CompilerInstance &CI,
   // the module map, rather than adding it after the fact.
   StringRef OriginalModuleMapName = CI.getFrontendOpts().OriginalModuleMap;
   if (!OriginalModuleMapName.empty()) {
-    auto *OriginalModuleMap =
+    auto OriginalModuleMap =
         CI.getFileManager().getFile(OriginalModuleMapName,
                                     /*openFile*/ true);
     if (!OriginalModuleMap) {
@@ -489,11 +489,11 @@ static Module *prepareToBuildModule(CompilerInstance &CI,
         << OriginalModuleMapName;
       return nullptr;
     }
-    if (OriginalModuleMap != CI.getSourceManager().getFileEntryForID(
+    if (*OriginalModuleMap != CI.getSourceManager().getFileEntryForID(
                                  CI.getSourceManager().getMainFileID())) {
       M->IsInferred = true;
       CI.getPreprocessor().getHeaderSearchInfo().getModuleMap()
-        .setInferredModuleAllowedBy(M, OriginalModuleMap);
+        .setInferredModuleAllowedBy(M, *OriginalModuleMap);
     }
   }
 
@@ -674,8 +674,8 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   // Set up embedding for any specified files. Do this before we load any
   // source files, including the primary module map for the compilation.
   for (const auto &F : CI.getFrontendOpts().ModulesEmbedFiles) {
-    if (const auto *FE = CI.getFileManager().getFile(F, /*openFile*/true))
-      CI.getSourceManager().setFileIsTransient(FE);
+    if (auto FE = CI.getFileManager().getFile(F, /*openFile*/true))
+      CI.getSourceManager().setFileIsTransient(*FE);
     else
       CI.getDiagnostics().Report(diag::err_modules_embed_file_not_found) << F;
   }
@@ -709,12 +709,12 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     PreprocessorOptions &PPOpts = CI.getPreprocessorOpts();
     StringRef PCHInclude = PPOpts.ImplicitPCHInclude;
     std::string SpecificModuleCachePath = CI.getSpecificModuleCachePath();
-    if (const DirectoryEntry *PCHDir = FileMgr.getDirectory(PCHInclude)) {
+    if (auto PCHDir = FileMgr.getDirectory(PCHInclude)) {
       std::error_code EC;
       SmallString<128> DirNative;
-      llvm::sys::path::native(PCHDir->getName(), DirNative);
+      llvm::sys::path::native((*PCHDir)->getName(), DirNative);
       bool Found = false;
-      llvm::vfs::FileSystem &FS = *FileMgr.getVirtualFileSystem();
+      llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
       for (llvm::vfs::directory_iterator Dir = FS.dir_begin(DirNative, EC),
                                          DirEnd;
            Dir != DirEnd && !EC; Dir.increment(EC)) {
@@ -792,9 +792,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
   // If we were asked to load any module map files, do so now.
   for (const auto &Filename : CI.getFrontendOpts().ModuleMapFiles) {
-    if (auto *File = CI.getFileManager().getFile(Filename))
+    if (auto File = CI.getFileManager().getFile(Filename))
       CI.getPreprocessor().getHeaderSearchInfo().loadModuleMapFile(
-          File, /*IsSystem*/false);
+          *File, /*IsSystem*/false);
     else
       CI.getDiagnostics().Report(diag::err_module_map_not_found) << Filename;
   }
@@ -924,7 +924,7 @@ failure:
   return false;
 }
 
-bool FrontendAction::Execute() {
+llvm::Error FrontendAction::Execute() {
   CompilerInstance &CI = getCompilerInstance();
 
   if (CI.hasFrontendTimer()) {
@@ -939,12 +939,18 @@ bool FrontendAction::Execute() {
       CI.hasPreprocessor()) {
     StringRef Cache =
         CI.getPreprocessor().getHeaderSearchInfo().getModuleCachePath();
-    if (!Cache.empty())
-      GlobalModuleIndex::writeIndex(CI.getFileManager(),
-                                    CI.getPCHContainerReader(), Cache);
+    if (!Cache.empty()) {
+      if (llvm::Error Err = GlobalModuleIndex::writeIndex(
+              CI.getFileManager(), CI.getPCHContainerReader(), Cache)) {
+        // FIXME this drops the error on the floor, but
+        // Index/pch-from-libclang.c seems to rely on dropping at least some of
+        // the error conditions!
+        consumeError(std::move(Err));
+      }
+    }
   }
 
-  return true;
+  return llvm::Error::success();
 }
 
 void FrontendAction::EndSourceFile() {

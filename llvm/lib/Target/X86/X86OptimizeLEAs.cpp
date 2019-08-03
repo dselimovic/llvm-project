@@ -198,8 +198,7 @@ static inline MemOpKey getMemOpKey(const MachineInstr &MI, unsigned N) {
 static inline bool isIdenticalOp(const MachineOperand &MO1,
                                  const MachineOperand &MO2) {
   return MO1.isIdenticalTo(MO2) &&
-         (!MO1.isReg() ||
-          !TargetRegisterInfo::isPhysicalRegister(MO1.getReg()));
+         (!MO1.isReg() || !Register::isPhysicalRegister(MO1.getReg()));
 }
 
 #ifndef NDEBUG
@@ -568,11 +567,8 @@ MachineInstr *OptimizeLEAPass::replaceDebugValue(MachineInstr &MI,
                                                  unsigned VReg,
                                                  int64_t AddrDispShift) {
   DIExpression *Expr = const_cast<DIExpression *>(MI.getDebugExpression());
-
   if (AddrDispShift != 0)
-    Expr = DIExpression::prepend(Expr, DIExpression::NoDeref, AddrDispShift,
-                                 DIExpression::NoDeref,
-                                 DIExpression::WithStackValue);
+    Expr = DIExpression::prepend(Expr, DIExpression::StackValue, AddrDispShift);
 
   // Replace DBG_VALUE instruction with modified version.
   MachineBasicBlock *MBB = MI.getParent();
@@ -700,7 +696,7 @@ bool OptimizeLEAPass::runOnMachineFunction(MachineFunction &MF) {
 
     // Remove redundant address calculations. Do it only for -Os/-Oz since only
     // a code size gain is expected from this part of the pass.
-    if (MF.getFunction().optForSize())
+    if (MF.getFunction().hasOptSize())
       Changed |= removeRedundantAddrCalc(LEAs);
   }
 

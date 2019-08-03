@@ -38,16 +38,33 @@ void data_drop() {
   // WEBASSEMBLY64: call void @llvm.wasm.data.drop(i32 3)
 }
 
-void throw(unsigned int tag, void *obj) {
-  return __builtin_wasm_throw(tag, obj);
-  // WEBASSEMBLY32: call void @llvm.wasm.throw(i32 %{{.*}}, i8* %{{.*}})
-  // WEBASSEMBLY64: call void @llvm.wasm.throw(i32 %{{.*}}, i8* %{{.*}})
+__SIZE_TYPE__ tls_size() {
+  return __builtin_wasm_tls_size();
+  // WEBASSEMBLY32: call i32 @llvm.wasm.tls.size.i32()
+  // WEBASSEMBLY64: call i64 @llvm.wasm.tls.size.i64()
 }
 
-void rethrow(void) {
-  return __builtin_wasm_rethrow();
-  // WEBASSEMBLY32: call void @llvm.wasm.rethrow()
-  // WEBASSEMBLY64: call void @llvm.wasm.rethrow()
+__SIZE_TYPE__ tls_align() {
+  return __builtin_wasm_tls_align();
+  // WEBASSEMBLY32: call i32 @llvm.wasm.tls.align.i32()
+  // WEBASSEMBLY64: call i64 @llvm.wasm.tls.align.i64()
+}
+
+void *tls_base() {
+  return __builtin_wasm_tls_base();
+  // WEBASSEMBLY: call i8* @llvm.wasm.tls.base()
+}
+
+void throw(void *obj) {
+  return __builtin_wasm_throw(0, obj);
+  // WEBASSEMBLY32: call void @llvm.wasm.throw(i32 0, i8* %{{.*}})
+  // WEBASSEMBLY64: call void @llvm.wasm.throw(i32 0, i8* %{{.*}})
+}
+
+void rethrow_in_catch(void) {
+  return __builtin_wasm_rethrow_in_catch();
+  // WEBASSEMBLY32: call void @llvm.wasm.rethrow.in.catch()
+  // WEBASSEMBLY64: call void @llvm.wasm.rethrow.in.catch()
 }
 
 int atomic_wait_i32(int *addr, int expected, long long timeout) {

@@ -2,7 +2,7 @@
 //
 // Just make sure we can compile this.
 // The actual compile&run sequence is to be done by the DLL tests.
-// RUN: %clang_cl_asan -O0 %s -Fe%t
+// RUN: %clang_cl_asan -Od %s -Fe%t
 //
 // Get the list of ASan wrappers exported by the main module RTL:
 // note: The mangling decoration (i.e. @4 )is removed because calling convention
@@ -18,11 +18,11 @@
 // Get the list of ASan wrappers imported by the DLL RTL:
 // [BEWARE: be really careful with the sed commands, as this test can be run
 //  from different environemnts with different shells and seds]
-// RUN: grep INTERCEPT_LIBRARY_FUNCTION %p/../../../../lib/asan/asan_win_dll_thunk.cc \
+// RUN: grep INTERCEPT_LIBRARY_FUNCTION %p/../../../../lib/asan/asan_win_dll_thunk.cpp \
 // RUN:  | grep -v define | sed -e s/.*(/__asan_wrap_/ -e s/).*//              \
 // RUN:  > %t.imports1
 //
-// Add functions interecepted in asan_malloc.win.cc and asan_win.cc.
+// Add functions interecepted in asan_malloc.win.cpp and asan_win.cpp.
 // RUN: grep '[I]MPORT:' %s | sed -e 's/.*[I]MPORT: //' > %t.imports2
 // IMPORT: __asan_wrap_HeapAlloc
 // IMPORT: __asan_wrap_HeapFree
@@ -32,13 +32,17 @@
 // IMPORT: __asan_wrap_RaiseException
 // IMPORT: __asan_wrap_RtlRaiseException
 // IMPORT: __asan_wrap_SetUnhandledExceptionFilter
+// IMPORT: __asan_wrap_RtlSizeHeap
+// IMPORT: __asan_wrap_RtlAllocateHeap
+// IMPORT: __asan_wrap_RtlReAllocateHeap
+// IMPORT: __asan_wrap_RtlFreeHeap
 //
 // RUN: cat %t.imports1 %t.imports2 | sort | uniq > %t.imports-sorted
 // RUN: cat %t.exports1 %t.exports2 | sort | uniq > %t.exports-sorted
 //
 // Now make sure the DLL thunk imports everything:
 // RUN: echo
-// RUN: echo "=== NOTE === If you see a mismatch below, please update asan_win_dll_thunk.cc"
+// RUN: echo "=== NOTE === If you see a mismatch below, please update asan_win_dll_thunk.cpp"
 // RUN: diff %t.imports-sorted %t.exports-sorted
 // REQUIRES: asan-static-runtime
 

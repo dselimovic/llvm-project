@@ -259,7 +259,7 @@ bool SSACCmpConv::isDeadDef(unsigned DstReg) {
   // Writes to the zero register are dead.
   if (DstReg == AArch64::WZR || DstReg == AArch64::XZR)
     return true;
-  if (!TargetRegisterInfo::isVirtualRegister(DstReg))
+  if (!Register::isVirtualRegister(DstReg))
     return false;
   // A virtual register def without any uses will be marked dead later, and
   // eventually replaced by the zero register.
@@ -940,7 +940,7 @@ bool AArch64ConditionalCompares::runOnMachineFunction(MachineFunction &MF) {
   MBPI = &getAnalysis<MachineBranchProbabilityInfo>();
   Traces = &getAnalysis<MachineTraceMetrics>();
   MinInstr = nullptr;
-  MinSize = MF.getFunction().optForMinSize();
+  MinSize = MF.getFunction().hasMinSize();
 
   bool Changed = false;
   CmpConv.runOnMachineFunction(MF, MBPI);

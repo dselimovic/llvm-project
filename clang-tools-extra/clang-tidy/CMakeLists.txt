@@ -4,10 +4,12 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_library(clangTidy
   ClangTidy.cpp
+  ClangTidyCheck.cpp
   ClangTidyModule.cpp
   ClangTidyDiagnosticConsumer.cpp
   ClangTidyOptions.cpp
   ClangTidyProfiling.cpp
+  ExpandModularHeadersPPCallbacks.cpp
 
   DEPENDS
   ClangSACheckers
@@ -42,6 +44,7 @@ add_subdirectory(cppcoreguidelines)
 add_subdirectory(fuchsia)
 add_subdirectory(google)
 add_subdirectory(hicpp)
+add_subdirectory(linuxkernel)
 add_subdirectory(llvm)
 add_subdirectory(misc)
 add_subdirectory(modernize)
@@ -49,6 +52,7 @@ if(CLANG_ENABLE_STATIC_ANALYZER)
   add_subdirectory(mpi)
 endif()
 add_subdirectory(objc)
+add_subdirectory(openmp)
 add_subdirectory(performance)
 add_subdirectory(plugin)
 add_subdirectory(portability)

@@ -49,9 +49,7 @@ INITIALIZE_PASS_END(InstructionSelect, DEBUG_TYPE,
                     "Select target instructions out of generic instructions",
                     false, false)
 
-InstructionSelect::InstructionSelect() : MachineFunctionPass(ID) {
-  initializeInstructionSelectPass(*PassRegistry::getPassRegistry());
-}
+InstructionSelect::InstructionSelect() : MachineFunctionPass(ID) { }
 
 void InstructionSelect::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetPassConfig>();
@@ -89,10 +87,10 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
                          "instruction is not legal", *MI);
       return false;
     }
-#endif
   // FIXME: We could introduce new blocks and will need to fix the outer loop.
   // Until then, keep track of the number of blocks to assert that we don't.
   const size_t NumBlocks = MF.size();
+#endif
 
   for (MachineBasicBlock *MBB : post_order(&MF)) {
     if (MBB->empty())
@@ -144,8 +142,6 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
-  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
-
   for (MachineBasicBlock &MBB : MF) {
     if (MBB.empty())
       continue;
@@ -165,8 +161,8 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
         continue;
       unsigned SrcReg = MI.getOperand(1).getReg();
       unsigned DstReg = MI.getOperand(0).getReg();
-      if (TargetRegisterInfo::isVirtualRegister(SrcReg) &&
-          TargetRegisterInfo::isVirtualRegister(DstReg)) {
+      if (Register::isVirtualRegister(SrcReg) &&
+          Register::isVirtualRegister(DstReg)) {
         auto SrcRC = MRI.getRegClass(SrcReg);
         auto DstRC = MRI.getRegClass(DstReg);
         if (SrcRC == DstRC) {
@@ -177,11 +173,13 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
     }
   }
 
+#ifndef NDEBUG
+  const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
   // Now that selection is complete, there are no more generic vregs.  Verify
   // that the size of the now-constrained vreg is unchanged and that it has a
   // register class.
   for (unsigned I = 0, E = MRI.getNumVirtRegs(); I != E; ++I) {
-    unsigned VReg = TargetRegisterInfo::index2VirtReg(I);
+    unsigned VReg = Register::index2VirtReg(I);
 
     MachineInstr *MI = nullptr;
     if (!MRI.def_empty(VReg))
@@ -215,7 +213,7 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
     reportGISelFailure(MF, TPC, MORE, R);
     return false;
   }
-
+#endif
   auto &TLI = *MF.getSubtarget().getTargetLowering();
   TLI.finalizeLowering(MF);
 

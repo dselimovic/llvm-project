@@ -11,6 +11,7 @@
 
 #include "ClangdServer.h"
 #include "DraftStore.h"
+#include "Features.inc"
 #include "FindSymbols.h"
 #include "GlobalCompilationDatabase.h"
 #include "Path.h"
@@ -40,6 +41,7 @@ public:
   ClangdLSPServer(Transport &Transp, const FileSystemProvider &FSProvider,
                   const clangd::CodeCompleteOptions &CCOpts,
                   llvm::Optional<Path> CompileCommandsDir, bool UseDirBasedCDB,
+                  llvm::Optional<OffsetEncoding> ForcedOffsetEncoding,
                   const ClangdServer::Options &Opts);
   ~ClangdLSPServer();
 
@@ -53,6 +55,9 @@ private:
   // Implement DiagnosticsConsumer.
   void onDiagnosticsReady(PathRef File, std::vector<Diag> Diagnostics) override;
   void onFileUpdated(PathRef File, const TUStatus &Status) override;
+  void onHighlightingsReady(PathRef File,
+                            std::vector<HighlightingToken> Highlightings,
+                            int NumLines) override;
 
   // LSP methods. Notifications have signature void(const Params&).
   // Calls have signature void(const Params&, Callback<Response>).
@@ -83,16 +88,22 @@ private:
                         Callback<std::vector<Location>>);
   void onReference(const ReferenceParams &, Callback<std::vector<Location>>);
   void onSwitchSourceHeader(const TextDocumentIdentifier &,
-                            Callback<std::string>);
+                            Callback<llvm::Optional<URIForFile>>);
   void onDocumentHighlight(const TextDocumentPositionParams &,
                            Callback<std::vector<DocumentHighlight>>);
   void onFileEvent(const DidChangeWatchedFilesParams &);
   void onCommand(const ExecuteCommandParams &, Callback<llvm::json::Value>);
   void onWorkspaceSymbol(const WorkspaceSymbolParams &,
                          Callback<std::vector<SymbolInformation>>);
+  void onPrepareRename(const TextDocumentPositionParams &,
+                       Callback<llvm::Optional<Range>>);
   void onRename(const RenameParams &, Callback<WorkspaceEdit>);
   void onHover(const TextDocumentPositionParams &,
                Callback<llvm::Optional<Hover>>);
+  void onTypeHierarchy(const TypeHierarchyParams &,
+                       Callback<llvm::Optional<TypeHierarchyItem>>);
+  void onResolveTypeHierarchy(const ResolveTypeHierarchyItemParams &,
+                              Callback<llvm::Optional<TypeHierarchyItem>>);
   void onChangeConfiguration(const DidChangeConfigurationParams &);
   void onSymbolInfo(const TextDocumentPositionParams &,
                     Callback<std::vector<SymbolDetails>>);
@@ -111,6 +122,13 @@ private:
   void reparseOpenedFiles();
   void applyConfiguration(const ConfigurationSettings &Settings);
 
+  /// Sends a "publishSemanticHighlighting" notification to the LSP client.
+  void publishSemanticHighlighting(SemanticHighlightingParams Params);
+
+  /// Sends a "publishDiagnostics" notification to the LSP client.
+  void publishDiagnostics(const URIForFile &File,
+                          std::vector<clangd::Diagnostic> Diagnostics);
+
   /// Used to indicate that the 'shutdown' request was received from the
   /// Language Server client.
   bool ShutdownRequestReceived = false;
@@ -120,6 +138,8 @@ private:
       DiagnosticToReplacementMap;
   /// Caches FixIts per file and diagnostics
   llvm::StringMap<DiagnosticToReplacementMap> FixItsMap;
+  std::mutex HighlightingsMutex;
+  llvm::StringMap<std::vector<HighlightingToken>> FileToHighlightings;
 
   // Most code should not deal with Transport directly.
   // MessageHandler deals with incoming messages, use call() etc for outgoing.
@@ -146,6 +166,10 @@ private:
   bool SupportsHierarchicalDocumentSymbol = false;
   /// Whether the client supports showing file status.
   bool SupportFileStatus = false;
+  /// Which kind of markup should we use in textDocument/hover responses.
+  MarkupKind HoverContentFormat = MarkupKind::PlainText;
+  /// Whether the client supports offsets for parameter info labels.
+  bool SupportsOffsetsInSignatureHelp = false;
   // Store of the current versions of the open documents.
   DraftStore DraftMgr;
 
@@ -159,6 +183,7 @@ private:
   // It is destroyed before run() returns, to ensure worker threads exit.
   ClangdServer::Options ClangdServerOpts;
   llvm::Optional<ClangdServer> Server;
+  llvm::Optional<OffsetEncoding> NegotiatedOffsetEncoding;
 };
 } // namespace clangd
 } // namespace clang

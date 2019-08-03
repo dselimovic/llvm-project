@@ -1,6 +1,6 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-add_clang_executable(clang-doc
+add_clang_tool(clang-doc
   ClangDocMain.cpp
   )
 
@@ -14,4 +14,7 @@ target_link_libraries(clang-doc
   clangTooling
   clangToolingCore
   )
-  
+
+install(FILES ../stylesheets/clang-doc-default-stylesheet.css
+  DESTINATION share/clang
+  COMPONENT clang-doc)

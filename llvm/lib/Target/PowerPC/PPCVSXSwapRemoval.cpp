@@ -59,10 +59,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "ppc-vsx-swaps"
 
-namespace llvm {
-  void initializePPCVSXSwapRemovalPass(PassRegistry&);
-}
-
 namespace {
 
 // A PPCVSXSwapEntry is created for each machine instruction that
@@ -162,7 +158,7 @@ private:
 
   // Return true iff the given register is in the given class.
   bool isRegInClass(unsigned Reg, const TargetRegisterClass *RC) {
-    if (TargetRegisterInfo::isVirtualRegister(Reg))
+    if (Register::isVirtualRegister(Reg))
       return RC->hasSubClassEq(MRI->getRegClass(Reg));
     return RC->contains(Reg);
   }
@@ -426,6 +422,7 @@ bool PPCVSXSwapRemoval::gatherVectorInstructions() {
       // of opcodes having a common attribute in TableGen.  Should this
       // change, this is a prime candidate to use such a mechanism.
       case PPC::INLINEASM:
+      case PPC::INLINEASM_BR:
       case PPC::EXTRACT_SUBREG:
       case PPC::INSERT_SUBREG:
       case PPC::COPY_TO_REGCLASS:
@@ -569,7 +566,7 @@ unsigned PPCVSXSwapRemoval::lookThruCopyLike(unsigned SrcReg,
     CopySrcReg = MI->getOperand(2).getReg();
   }
 
-  if (!TargetRegisterInfo::isVirtualRegister(CopySrcReg)) {
+  if (!Register::isVirtualRegister(CopySrcReg)) {
     if (!isScalarVecReg(CopySrcReg))
       SwapVector[VecIdx].MentionsPhysVR = 1;
     return CopySrcReg;
@@ -608,7 +605,7 @@ void PPCVSXSwapRemoval::formWebs() {
       if (!isVecReg(Reg) && !isScalarVecReg(Reg))
         continue;
 
-      if (!TargetRegisterInfo::isVirtualRegister(Reg)) {
+      if (!Register::isVirtualRegister(Reg)) {
         if (!(MI->isCopy() && isScalarVecReg(Reg)))
           SwapVector[EntryIdx].MentionsPhysVR = 1;
         continue;

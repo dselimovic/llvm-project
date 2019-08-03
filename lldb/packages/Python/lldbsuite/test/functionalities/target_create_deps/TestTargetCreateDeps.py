@@ -30,14 +30,21 @@ class TargetDependentsTestCase(TestBase):
         self.expect(
             "image list", msg, matching=should_match, substrs=['[  1]'])
 
-    @expectedFailureAll(oslist=["linux"]) #linux does not support loading dependent files
+
+    @expectedFailureAll(oslist=["linux"],
+        triple=no_match(".*-android"))
+        #linux does not support loading dependent files, but android does
+    @expectedFailureNetBSD
     def test_dependents_implicit_default_exe(self):
         """Test default behavior"""
         exe = self.getBuildArtifact("a.out")
         self.runCmd("target create  " + exe, CURRENT_EXECUTABLE_SET)
         self.has_exactly_one_image(False)
 
-    @expectedFailureAll(oslist=["linux"]) #linux does not support loading dependent files
+    @expectedFailureAll(oslist=["linux"],
+        triple=no_match(".*-android"))
+        #linux does not support loading dependent files, but android does
+    @expectedFailureNetBSD
     def test_dependents_explicit_default_exe(self):
         """Test default behavior"""
         exe = self.getBuildArtifact("a.out")
@@ -50,7 +57,10 @@ class TargetDependentsTestCase(TestBase):
         self.runCmd("target create -dtrue " + exe, CURRENT_EXECUTABLE_SET)
         self.has_exactly_one_image(True)
 
-    @expectedFailureAll(oslist=["linux"]) #linux does not support loading dependent files
+    @expectedFailureAll(oslist=["linux"],
+        triple=no_match(".*-android"))
+        #linux does not support loading dependent files, but android does
+    @expectedFailureNetBSD
     def test_dependents_explicit_false_exe(self):
         """Test default behavior"""
         exe = self.getBuildArtifact("a.out")
@@ -63,6 +73,7 @@ class TargetDependentsTestCase(TestBase):
         self.runCmd("target create  -d " + exe, CURRENT_EXECUTABLE_SET)
         self.has_exactly_one_image(True)
 
+    @expectedFailureAndroid # android will return mutiple images
     def test_dependents_implicit_default_lib(self):
         ctx = self.platformContext
         dylibName = ctx.shlib_prefix + 'load_a.' + ctx.shlib_extension
@@ -84,7 +95,10 @@ class TargetDependentsTestCase(TestBase):
         self.runCmd("target create -dtrue " + lib, CURRENT_EXECUTABLE_SET)
         self.has_exactly_one_image(True)
 
-    @expectedFailureAll(oslist=["linux"]) #linux does not support loading dependent files
+    @expectedFailureAll(oslist=["linux"],
+        triple=no_match(".*-android"))
+        #linux does not support loading dependent files, but android does
+    @expectedFailureNetBSD
     def test_dependents_explicit_false_lib(self):
         ctx = self.platformContext
         dylibName = ctx.shlib_prefix + 'load_a.' + ctx.shlib_extension
