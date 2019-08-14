@@ -226,9 +226,13 @@ define <4 x i32> @ashr_add_shl_v4i8(<4 x i32> %r) nounwind {
 ;
 ; X64-LABEL: ashr_add_shl_v4i8:
 ; X64:       # %bb.0:
+; X64-NEXT:    pand {{.*}}(%rip), %xmm0
+; X64-NEXT:    packuswb %xmm0, %xmm0
+; X64-NEXT:    packuswb %xmm0, %xmm0
 ; X64-NEXT:    pcmpeqd %xmm1, %xmm1
-; X64-NEXT:    psubd %xmm1, %xmm0
-; X64-NEXT:    pslld $24, %xmm0
+; X64-NEXT:    psubb %xmm1, %xmm0
+; X64-NEXT:    punpcklbw {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7]
+; X64-NEXT:    punpcklwd {{.*#+}} xmm0 = xmm0[0,0,1,1,2,2,3,3]
 ; X64-NEXT:    psrad $24, %xmm0
 ; X64-NEXT:    retq
   %conv = shl <4 x i32> %r, <i32 24, i32 24, i32 24, i32 24>
@@ -386,4 +390,37 @@ define i32 @ashr_add_shl_i32_i8_extra_use3(i32 %r, i32* %p1, i32* %p2) nounwind 
   store i32 %sext, i32* %p2
   %conv1 = ashr i32 %sext, 24
   ret i32 %conv1
+}
+
+%"class.QPainterPath" = type { double, double, i32 }
+
+define void @PR42880(i32 %t0) {
+; X32-LABEL: PR42880:
+; X32:       # %bb.0:
+; X32-NEXT:    xorl %eax, %eax
+; X32-NEXT:    testb %al, %al
+; X32-NEXT:    je .LBB16_1
+; X32-NEXT:  # %bb.2: # %if
+; X32-NEXT:  .LBB16_1: # %then
+;
+; X64-LABEL: PR42880:
+; X64:       # %bb.0:
+; X64-NEXT:    xorl %eax, %eax
+; X64-NEXT:    testb %al, %al
+; X64-NEXT:    je .LBB16_1
+; X64-NEXT:  # %bb.2: # %if
+; X64-NEXT:  .LBB16_1: # %then
+  %sub = add nsw i32 %t0, -1
+  %add.ptr.i94 = getelementptr inbounds %"class.QPainterPath", %"class.QPainterPath"* null, i32 %sub
+  %x = ptrtoint %"class.QPainterPath"* %add.ptr.i94 to i32
+  %sub2 = sub i32 %x, 0
+  %div = sdiv exact i32 %sub2, 24
+  br i1 undef, label %if, label %then
+
+then:
+  %t1 = xor i32 %div, -1
+  unreachable
+
+if:
+  unreachable
 }
