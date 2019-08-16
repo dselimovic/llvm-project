@@ -315,9 +315,6 @@ void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
     }
     const Type *T = getAsType();
 
-    PrintingPolicy InnerPolicy(Policy);
-    InnerPolicy.SuppressScope = true;
-
     // Nested-name-specifiers are intended to contain minimally-qualified
     // types. An actual ElaboratedType will not occur, since we'll store
     // just the type that is referred to in the nested-name-specifier (e.g.,
@@ -329,6 +326,9 @@ void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
            "Elaborated type in nested-name-specifier");
     if (const TemplateSpecializationType *SpecType
           = dyn_cast<TemplateSpecializationType>(T)) {
+      PrintingPolicy InnerPolicy(Policy);
+      InnerPolicy.SuppressScope = true;
+
       // Print the template name without its corresponding
       // nested-name-specifier.
       SpecType->getTemplateName().print(OS, InnerPolicy, true);
@@ -338,7 +338,7 @@ void NestedNameSpecifier::print(raw_ostream &OS, const PrintingPolicy &Policy,
                                 InnerPolicy);
     } else {
       // Print the type normally
-      QualType(T, 0).print(OS, InnerPolicy);
+      QualType(T, 0).print(OS, /*InnerPolicy*/Policy);
     }
     break;
   }
