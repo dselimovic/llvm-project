@@ -6773,8 +6773,9 @@ CINDEX_LINKAGE unsigned clang_Function_isDeleted(CXCursor C);
 CINDEX_LINKAGE unsigned clang_Function_isOverloadedOperator(CXCursor C);
 CINDEX_LINKAGE unsigned clang_ConversionFunction_isExplicit(CXCursor C);
 CINDEX_LINKAGE unsigned clang_Argument_hasDefaultValue(CXCursor C);
-CINDEX_LINKAGE CXSourceRange clang_Argument_getDefaultValueSourceRange(CXCursor C);
-CINDEX_LINKAGE const char* clang_SourceLocation_getCharacterData(CXSourceLocation SL);
+CINDEX_LINKAGE CXString clang_Argument_getDefaultValueExprText(CXCursor C);
+//CINDEX_LINKAGE CXSourceRange clang_Argument_getDefaultValueSourceRange(CXCursor C);
+//CINDEX_LINKAGE const char* clang_SourceLocation_getCharacterData(CXSourceLocation SL);
 
 // Gamepires end
 

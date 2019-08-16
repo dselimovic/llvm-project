@@ -8788,33 +8788,57 @@ unsigned clang_Argument_hasDefaultValue(CXCursor C) {
   return 0;
 }
 
-CXSourceRange clang_Argument_getDefaultValueSourceRange(CXCursor C) {
+CXString clang_Argument_getDefaultValueExprText(CXCursor C) {
   if (clang_isDeclaration(C.kind)) {
     if (const ParmVarDecl *PD = dyn_cast<ParmVarDecl>(getCursorDecl(C))) {
       if (!PD->hasDefaultArg()) {
-        return clang_getNullRange();
+        return cxstring::createEmpty();
       }
 
-      SourceRange R = PD->getDefaultArgRange();
+      CXTranslationUnit TU = getCursorTU(C);
+      PrintingPolicy Policy(TU->TheASTUnit->getLangOpts());
+      Policy.FullyQualifiedName = 1;
+      Policy.PrintCanonicalTypes = 1;
 
-      if (R.isInvalid())
-        return clang_getNullRange();
+	  std::string Buffer;
+      llvm::raw_string_ostream Stream(Buffer);
+      PD->getDefaultArg()->printPretty(Stream, nullptr, Policy);
+      Stream.flush();
 
-      return cxloc::translateSourceRange(getCursorContext(C), R);
+      return cxstring::createDup(Buffer.c_str());
     }
   }
 
-  return clang_getNullRange();
+  return cxstring::createEmpty();
 }
 
-const char *clang_SourceLocation_getCharacterData(CXSourceLocation SL) {
-  const SourceLocation Loc = SourceLocation::getFromRawEncoding(SL.int_data);
-  if (Loc.isInvalid())
-    return nullptr;
-
-  const SourceManager &SM = *static_cast<const SourceManager *>(SL.ptr_data[0]);
-  return SM.getCharacterData(Loc);
-}
+//CXSourceRange clang_Argument_getDefaultValueSourceRange(CXCursor C) {
+//  if (clang_isDeclaration(C.kind)) {
+//    if (const ParmVarDecl *PD = dyn_cast<ParmVarDecl>(getCursorDecl(C))) {
+//      if (!PD->hasDefaultArg()) {
+//        return clang_getNullRange();
+//      }
+//
+//      SourceRange R = PD->getDefaultArgRange();
+//
+//      if (R.isInvalid())
+//        return clang_getNullRange();
+//
+//      return cxloc::translateSourceRange(getCursorContext(C), R);
+//    }
+//  }
+//
+//  return clang_getNullRange();
+//}
+//
+//const char *clang_SourceLocation_getCharacterData(CXSourceLocation SL) {
+//  const SourceLocation Loc = SourceLocation::getFromRawEncoding(SL.int_data);
+//  if (Loc.isInvalid())
+//    return nullptr;
+//
+//  const SourceManager &SM = *static_cast<const SourceManager *>(SL.ptr_data[0]);
+//  return SM.getCharacterData(Loc);
+//}
 
 unsigned clang_CXXRecord_isPolymorphic(CXCursor C) {
   if (!clang_isDeclaration(C.kind))
