@@ -251,7 +251,7 @@ public:
       sys::fs::create_directories(Twine(dir));
     }
     std::error_code EC;
-    raw_fd_ostream outfile(CacheName, EC, sys::fs::F_None);
+    raw_fd_ostream outfile(CacheName, EC, sys::fs::OF_None);
     outfile.write(Obj.getBufferStart(), Obj.getBufferSize());
     outfile.close();
   }
@@ -726,7 +726,7 @@ static std::function<void(Module &)> createDebugDumper() {
   case DumpKind::DumpModsToDisk:
     return [](Module &M) {
       std::error_code EC;
-      raw_fd_ostream Out(M.getModuleIdentifier() + ".ll", EC, sys::fs::F_Text);
+      raw_fd_ostream Out(M.getModuleIdentifier() + ".ll", EC, sys::fs::OF_Text);
       if (EC) {
         errs() << "Couldn't open " << M.getModuleIdentifier()
                << " for dumping.\nError:" << EC.message() << "\n";
@@ -792,7 +792,7 @@ int runOrcLazyJIT(const char *ProgName) {
     });
     return TSM;
   });
-  J->getMainJITDylib().setGenerator(
+  J->getMainJITDylib().addGenerator(
       ExitOnErr(orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
           J->getDataLayout().getGlobalPrefix())));
 
@@ -831,6 +831,16 @@ int runOrcLazyJIT(const char *ProgName) {
       auto &JD = *JDItr->second;
       ExitOnErr(
           J->addLazyIRModule(JD, orc::ThreadSafeModule(std::move(M), TSCtx)));
+    }
+
+    for (auto EAItr = ExtraArchives.begin(), EAEnd = ExtraArchives.end();
+         EAItr != EAEnd; ++EAItr) {
+      auto EAIdx = ExtraArchives.getPosition(EAItr - ExtraArchives.begin());
+      assert(EAIdx != 0 && "ExtraArchive should have index > 0");
+      auto JDItr = std::prev(IdxToDylib.lower_bound(EAIdx));
+      auto &JD = *JDItr->second;
+      JD.addGenerator(ExitOnErr(orc::StaticLibraryDefinitionGenerator::Load(
+          J->getObjLinkingLayer(), EAItr->c_str())));
     }
   }
 
